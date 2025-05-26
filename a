@@ -1,0 +1,6 @@
+cd youtube-dublaj-api
+git init
+git add .
+git commit -m "İlk yükleme"
+git remote add origin https://github.com/KULLANICIADIN/youtube-dublaj-api.git
+git push -u origin main
