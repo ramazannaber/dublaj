@@ -1,0 +1,52 @@
+from flask import Flask, request, jsonify
+import yt_dlp
+import whisper
+from googletrans import Translator
+from elevenlabs import generate, save, set_api_key
+from moviepy.editor import VideoFileClip, AudioFileClip
+import os
+
+app = Flask(__name__)
+set_api_key("YOUR_ELEVENLABS_API_KEY")  # KENDİ KEY'İNİ KO
+
+@app.route('/')
+def home():
+    return "Dublaj API çalışıyor!"
+
+@app.route('/dublaj', methods=['POST'])
+def dublajla():
+    data = request.json
+    link = data.get("link")
+
+    os.makedirs("downloads", exist_ok=True)
+
+    # 1. Video indir
+    ydl_opts = {'format': 'best', 'outtmpl': 'downloads/video.mp4'}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([link])
+
+    # 2. Ses yazıya çevir
+    model = whisper.load_model("base")
+    result = model.transcribe("downloads/video.mp4", language='en')
+    text = result['text']
+
+    # 3. Türkçeye çevir
+    translated = Translator().translate(text, src='en', dest='tr').text
+
+    # 4. Türkçe sese çevir
+    audio = generate(text=translated, voice="Cem", model="eleven_multilingual_v2")
+    ses_path = "downloads/turkce_ses.mp3"
+    save(audio, ses_path)
+
+    # 5. Videoya sesi ekle
+    video = VideoFileClip("downloads/video.mp4")
+    new_audio = AudioFileClip(ses_path)
+    video = video.set_audio(new_audio)
+    final_path = "downloads/dublajli_video.mp4"
+    video.write_videofile(final_path, codec='libx264', audio_codec='aac')
+
+    return jsonify({"message": "Tamamlandı", "indir_url": "/indir"})
+
+@app.route("/indir")
+def indir():
+    return app.send_static_file("dublajli_video.mp4")
